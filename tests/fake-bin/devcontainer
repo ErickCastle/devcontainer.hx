@@ -1,0 +1,72 @@
+#!/bin/sh
+# Stand-in for the Dev Container CLI, used to exercise the plugin's handling of
+# success and failure without needing Docker.
+#
+# The behaviour is read from tests/tmp/fake-mode so a test can switch modes by
+# writing that file, rather than by manipulating the environment.
+set -e
+
+MODE_FILE="$(dirname "$0")/../tmp/fake-mode"
+MODE="success"
+[ -f "$MODE_FILE" ] && MODE="$(cat "$MODE_FILE")"
+
+log() { echo "$1" >&2; }
+
+# Drop the leading subcommand and any --workspace-folder/--config pairs, leaving
+# the user's own command.
+strip_flags() {
+	shift
+	while [ "$#" -gt 0 ]; do
+		case "$1" in
+		--workspace-folder | --config) shift 2 ;;
+		--*) shift ;;
+		*) break ;;
+		esac
+	done
+	echo "$*"
+}
+
+case "$MODE" in
+success)
+	log "[12 ms] dev-containers-cli 0.80.0."
+	log "[45 ms] Start: Run: docker start"
+	case "$1" in
+	read-configuration)
+		echo '{"configuration":{"name":"fake","image":"debian"},"workspace":{"workspaceFolder":"/workspaces/fixture"}}'
+		;;
+	exec)
+		echo "ran: $(strip_flags "$@")"
+		;;
+	*)
+		echo '{"outcome":"success","containerId":"deadbeef1234","remoteUser":"vscode","remoteWorkspaceFolder":"/workspaces/fixture"}'
+		;;
+	esac
+	;;
+error-outcome)
+	log "[12 ms] dev-containers-cli 0.80.0."
+	echo '{"outcome":"error","message":"docker: command not found","description":"An error occurred setting up the container."}'
+	exit 1
+	;;
+crash)
+	log "Cannot connect to the Docker daemon at unix:///var/run/docker.sock."
+	log "Is the docker daemon running?"
+	exit 1
+	;;
+garbage)
+	echo 'not json at all'
+	;;
+noisy-success)
+	# Large stderr volume with the JSON result emitted only at the very end.
+	i=0
+	while [ "$i" -lt 20000 ]; do
+		log "[build] step $i emitting a reasonably long progress line for buffering"
+		i=$((i + 1))
+	done
+	echo '{"outcome":"success","containerId":"noisy999","remoteUser":"root","remoteWorkspaceFolder":"/workspaces/fixture"}'
+	;;
+nonzero-exec)
+	log "some stderr from the child"
+	echo "partial output"
+	exit 7
+	;;
+esac

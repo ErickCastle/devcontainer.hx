@@ -1,0 +1,4 @@
+{
+  "name": "fixture-nested",
+  "image": "mcr.microsoft.com/devcontainers/base:debian"
+}

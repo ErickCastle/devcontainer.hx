@@ -1,0 +1,4 @@
+{
+  "name": "hostile",
+  "image": "mcr.microsoft.com/devcontainers/base:debian"
+}

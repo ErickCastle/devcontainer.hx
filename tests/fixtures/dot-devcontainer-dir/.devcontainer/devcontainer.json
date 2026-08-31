@@ -1,0 +1,4 @@
+{
+  "name": "fixture-dir",
+  "image": "mcr.microsoft.com/devcontainers/base:debian"
+}
