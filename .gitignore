@@ -1,0 +1,5 @@
+# Local toolchain build (Helix/Steel fork, cargo target dir)
+.build/
+
+# Test scratch space
+tests/tmp/
