@@ -1,0 +1,4 @@
+{
+  "name": "hx-e2e-file",
+  "image": "alpine:3.20"
+}

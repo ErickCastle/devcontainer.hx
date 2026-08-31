@@ -9,8 +9,10 @@
 	// this plugin can be exercised end to end from inside this container.
 	// node provides the npm used to install the CLI itself.
 	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
-		"ghcr.io/devcontainers/features/node:1": {}
+		"ghcr.io/devcontainers/features/docker-in-docker:4.1.0": {
+			"moby": false
+		},
+		"ghcr.io/devcontainers/features/node:2.1.0": {}
 	},
 
 	"postCreateCommand": "npm install -g @devcontainers/cli",

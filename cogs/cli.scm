@@ -9,11 +9,13 @@
 
 (require "proc.scm")
 (require-builtin steel/json)
+(require-builtin steel/filesystem)
 (require "steel/result")
 
 (provide cli-name
          cli-available?
          cli-install-hint
+         absolute-path
          read-configuration
          up
          exec
@@ -150,6 +152,15 @@
   (append (list "--workspace-folder" workspace) (if config (list "--config" config) '())))
 
 ;;@doc
+;; Resolve a workspace path to an absolute one, falling back to the input if it
+;; cannot be resolved.
+;;
+;; The CLI resolves `--workspace-folder` against its own working directory, which
+;; is the workspace itself, so a relative path would otherwise be resolved twice.
+(define (absolute-path path)
+  (with-handler (lambda (err) path) (canonicalize-path path)))
+
+;;@doc
 ;; Read the resolved configuration for a workspace without starting a container.
 ;;
 ;; * workspace : string?          -- absolute path to the project folder
@@ -158,11 +169,12 @@
 ;; The result carries `configuration` and `workspace` (whose `workspaceFolder` is
 ;; the path the project is mounted at *inside* the container).
 (define (read-configuration workspace config)
-  (interpret-json-result (run-cli (append (list "read-configuration")
-                                          (workspace-args workspace config)
-                                          (list "--include-merged-configuration"))
-                                  workspace)
-                         "Reading dev container configuration"))
+  (let ([root (absolute-path workspace)])
+    (interpret-json-result (run-cli (append (list "read-configuration")
+                                            (workspace-args root config)
+                                            (list "--include-merged-configuration"))
+                                    root)
+                           "Reading dev container configuration")))
 
 ;;@doc
 ;; Create and start the dev container, building the image if necessary.
@@ -173,12 +185,13 @@
 ;; On success the result carries `containerId`, `remoteUser` and
 ;; `remoteWorkspaceFolder`.
 (define (up workspace config remove-existing? no-cache?)
-  (interpret-json-result (run-cli (append (list "up")
-                                          (workspace-args workspace config)
-                                          (if remove-existing? (list "--remove-existing-container") '())
-                                          (if no-cache? (list "--build-no-cache") '()))
-                                  workspace)
-                         "Starting dev container"))
+  (let ([root (absolute-path workspace)])
+    (interpret-json-result (run-cli (append (list "up")
+                                            (workspace-args root config)
+                                            (if remove-existing? (list "--remove-existing-container") '())
+                                            (if no-cache? (list "--build-no-cache") '()))
+                                    root)
+                           "Starting dev container")))
 
 ;;@doc
 ;; Run a command inside the running dev container.
@@ -188,7 +201,8 @@
 ;; Unlike the other commands this forwards the child's own stdout rather than a
 ;; JSON envelope, so the raw output and exit code are returned instead.
 (define (exec workspace config argv)
-  (let ([result (run-cli (append (list "exec") (workspace-args workspace config) argv) workspace)])
+  (let* ([root (absolute-path workspace)]
+         [result (run-cli (append (list "exec") (workspace-args root config) argv) root)])
     (if (hash-contains? result 'ok?)
         result
         (if (proc-success? result)

@@ -1,0 +1,5 @@
+{
+  "name": "hx-e2e-dir",
+  "image": "alpine:3.20",
+  "postCreateCommand": "echo created > /tmp/lifecycle-ran"
+}

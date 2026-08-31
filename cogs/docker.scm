@@ -10,6 +10,7 @@
 ;; degrades to reporting "unknown" rather than failing.
 
 (require "proc.scm")
+(require-builtin steel/filesystem)
 
 (provide docker-available?
          container-for-workspace
@@ -32,14 +33,15 @@
 ;; The id of the container the dev container CLI created for `workspace`, or
 ;; #false if there is none (or Docker is unavailable).
 ;;
-;; `workspace` must be the same absolute path the CLI was invoked with, since that
-;; is what it records in the label.
+;; The CLI records the absolute host path in the label, so the lookup path must be
+;; canonicalised to match.
 (define (container-for-workspace workspace)
   (if (not (docker-available?))
       #f
-      (let ([result (run/capture docker-name
-                                 (list "ps" "--all" "--quiet" "--filter" (label-filter workspace))
-                                 #f)])
+      (let* ([root (with-handler (lambda (err) workspace) (canonicalize-path workspace))]
+             [result (run/capture docker-name
+                                  (list "ps" "--all" "--quiet" "--filter" (label-filter root))
+                                  #f)])
         (if (proc-success? result) (first-line (proc-stdout result)) #f))))
 
 ;;@doc
