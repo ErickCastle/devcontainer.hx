@@ -3,7 +3,22 @@
 {
 	"name": "Rust",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/rust:2-1-trixie"
+	"image": "mcr.microsoft.com/devcontainers/rust:2-1-trixie",
+
+	// docker-in-docker provides the daemon that the Dev Container CLI drives, so
+	// this plugin can be exercised end to end from inside this container.
+	// node provides the npm used to install the CLI itself.
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/devcontainers/features/node:1": {}
+	},
+
+	"postCreateCommand": "npm install -g @devcontainers/cli",
+
+	// Keep the Helix/Steel build inside the workspace so it survives rebuilds.
+	"remoteEnv": {
+		"CARGO_TARGET_DIR": "${containerWorkspaceFolder}/.build/target"
+	}
 
 	// Use 'mounts' to make the cargo cache persistent in a Docker Volume.
 	// "mounts": [
