@@ -47,6 +47,20 @@ error-outcome)
 	echo '{"outcome":"error","message":"docker: command not found","description":"An error occurred setting up the container."}'
 	exit 1
 	;;
+image-missing)
+	# The shape a real pull failure takes: the JSON envelope names only the
+	# command that failed, while the reason is buried in the log on stderr.
+	log "[2026-08-30T13:43:20.038Z] Retrying (Attempt 3) with error "
+	log "[2026-08-30T13:43:22.252Z] Error response from daemon: No such image: example.com/nope:1-alpine"
+	log "[2026-08-30T13:43:22.252Z] Command failed: docker pull example.com/nope:1-alpine"
+	echo '{"outcome":"error","message":"Command failed: docker pull example.com/nope:1-alpine","description":"An error occurred setting up the container."}'
+	exit 1
+	;;
+daemon-down)
+	log "[2026-08-30T13:43:22.252Z] Cannot connect to the Docker daemon at unix:///var/run/docker.sock."
+	echo '{"outcome":"error","message":"Command failed: docker ps","description":"An error occurred setting up the container."}'
+	exit 1
+	;;
 crash)
 	log "Cannot connect to the Docker daemon at unix:///var/run/docker.sock."
 	log "Is the docker daemon running?"

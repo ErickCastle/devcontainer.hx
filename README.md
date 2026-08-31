@@ -126,8 +126,23 @@ and restarts it. The CLI applies `remoteUser`, `remoteEnv` and the container's
 > outside.** LSP messages carry `file://` URIs; Helix sends host paths and the
 > server replies with container paths. Nothing rewrites them, so if the paths
 > differ, go-to-definition and diagnostics will point at the wrong place. The
-> plugin compares the two and warns when they disagree. See
-> [Known limitations](#known-limitations).
+> plugin compares the two and warns when they disagree.
+
+By default the CLI mounts a project at `/workspaces/<name>` (or, inside a git
+repository, mounts the repository root), so the paths usually *do not* match. Pin
+them in `devcontainer.json` to make the language server work:
+
+```jsonc
+{
+  "image": "mcr.microsoft.com/devcontainers/rust:1-bookworm",
+  // Mount the project at the same path it has on the host.
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}"
+}
+```
+
+With that in place `:devcontainer-lsp-enable rust-analyzer` starts the server
+inside the container and navigation works normally.
 
 ## What is and is not supported
 
@@ -151,9 +166,11 @@ Not supported, and why:
 
 ## Known limitations
 
-- **No LSP URI translation.** As above: correct only when the host and container
-  paths match. Fixing this properly needs a stdio proxy that rewrites `file://`
-  URIs in both directions, or path-mapping support in Helix's LSP client.
+- **No LSP URI translation.** Correct only when the host and container paths
+  match; pin `workspaceMount`/`workspaceFolder` as shown above, or the plugin
+  warns and navigation will be wrong. Fixing this in general needs a stdio proxy
+  that rewrites `file://` URIs in both directions, or path-mapping support in
+  Helix's LSP client.
 - **`:devcontainer-exec` is not interactive.** Output is captured and shown after
   the command exits, so REPLs and anything needing a TTY will not work. An
   embedded terminal would need [`steel-pty`](https://github.com/mattwparas/helix-config).

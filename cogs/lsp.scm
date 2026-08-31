@@ -52,6 +52,6 @@
     (if (not original)
         (cons #f (string-append name " is not routed through the dev container"))
         (begin
-          (set-lsp-config! name original)
+          (set-lsp-config! name (restored-config original name))
           (set-box! *saved* (hash-remove (unbox *saved*) name))
           (cons #t "")))))

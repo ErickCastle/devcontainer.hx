@@ -40,13 +40,12 @@
   (set-scratch-buffer-name! name)
   (helix.static.insert_string text))
 
-;; Report a failed outcome on the statusline, keeping the longer explanation for
-;; the output buffer.
+;; Report a failed outcome on the statusline. The statusline is one line and gets
+;; truncated, so the specific cause goes first and the full transcript is left for
+;; :devcontainer-logs.
 (define (report-failure! ws outcome)
   (set-last-logs! ws (cli.outcome-logs outcome))
-  (fail (if (equal? (cli.outcome-detail outcome) "")
-            (cli.outcome-message outcome)
-            (string-append (cli.outcome-message outcome) " - " (cli.outcome-detail outcome)))))
+  (fail (string-append (cli.outcome-message outcome) " - run :devcontainer-logs for details")))
 
 ;; Refuse to start a second operation on the same workspace.
 (define (with-claim ws label thunk)

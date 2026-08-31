@@ -86,13 +86,44 @@
 
 (check-equal? "a structured error is a failure" (outcome-ok? up-err) #f)
 
-(check-equal? "the CLI description becomes the message"
+(check-equal? "the CLI message becomes the headline"
               (outcome-message up-err)
-              "An error occurred setting up the container.")
-
-(check-equal? "the CLI message becomes the detail"
-              (outcome-detail up-err)
               "docker: command not found")
+
+;;;; ---------------------------------------------------------------------------
+;;;; The reason for a failure is recovered from the log
+;;;;
+;;;; The CLI's JSON envelope only names the command that failed, so the useful
+;;;; explanation has to come from stderr.
+;;;; ---------------------------------------------------------------------------
+
+(set-mode! "image-missing")
+
+(define missing-image (up workspace #f #f #f))
+
+(check-equal? "a failed image pull is a failure" (outcome-ok? missing-image) #f)
+
+(check-equal? "the headline explains why, not just which command failed"
+              (outcome-message missing-image)
+              "Error response from daemon: No such image: example.com/nope:1-alpine")
+
+(check-equal? "the log timestamp is stripped from the headline"
+              (starts-with? (outcome-message missing-image) "[")
+              #f)
+
+(check-equal? "the failing command is kept as the detail"
+              (outcome-detail missing-image)
+              "Command failed: docker pull example.com/nope:1-alpine")
+
+(check-equal? "the full transcript is retained"
+              (string-contains? (outcome-logs missing-image) "Retrying (Attempt 3)")
+              #t)
+
+(set-mode! "daemon-down")
+
+(check-equal? "an unreachable daemon is explained"
+              (outcome-message (up workspace #f #f #f))
+              "Cannot connect to the Docker daemon at unix:///var/run/docker.sock.")
 
 ;;;; ---------------------------------------------------------------------------
 ;;;; Unstructured failures

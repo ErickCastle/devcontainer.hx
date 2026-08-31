@@ -119,19 +119,21 @@
       (let* ([logs (transcript result)]
              [json (let ([line (last-json-line (proc-stdout result))])
                      (if line (parse-json line) #f))]
-             [outcome (json-ref json 'outcome #f)])
+             [outcome (json-ref json 'outcome #f)]
+             [reason (diagnostic-line (proc-stderr result))])
         (cond
-          ;; The CLI reported a structured failure.
+          ;; The CLI reported a structured failure. Its `message` only names the
+          ;; command that failed, so lead with the reason from the log when there
+          ;; is one.
           [(equal? outcome "error")
-           (err-outcome (json-ref json 'description (string-append operation " failed"))
-                        (json-ref json 'message "")
+           (err-outcome (if reason reason (json-ref json 'message (string-append operation " failed")))
+                        (json-ref json 'message (json-ref json 'description ""))
                         logs)]
           ;; Exited non-zero without a usable envelope: surface stderr.
           [(not (proc-success? result))
-           (err-outcome (string-append operation
-                                       " failed (exit "
-                                       (to-string (proc-code result))
-                                       ")")
+           (err-outcome (if reason
+                            reason
+                            (string-append operation " failed (exit " (to-string (proc-code result)) ")"))
                         (tail-lines (proc-stderr result) 20)
                         logs)]
           [(not json)
@@ -143,6 +145,41 @@
 (define (tail-lines text n)
   (let ([lines (filter (lambda (l) (not (blank? l))) (split-many text "\n"))])
     (string-join (if (> (length lines) n) (list-tail lines (- (length lines) n)) lines) "\n")))
+
+;; The CLI prefixes its log lines with an ISO timestamp in brackets.
+(define (strip-log-prefix line)
+  (if (starts-with? (trim line) "[")
+      (let ([parts (split-once (trim line) "] ")])
+        (if (list? parts) (trim (list-ref parts 1)) (trim line)))
+      (trim line)))
+
+;; Phrases that identify the line actually explaining a failure. The CLI's JSON
+;; envelope only reports which command failed ("Command failed: docker pull x"),
+;; never why, so the reason has to be recovered from the log on stderr.
+(define diagnostic-markers
+  (list "Error response from daemon"
+        "Cannot connect to the Docker daemon"
+        "no space left on device"
+        "no basic auth credentials"
+        "unauthorized"
+        "denied"
+        "not found"))
+
+(define (diagnostic? line)
+  (let loop ([markers diagnostic-markers])
+    (cond
+      [(empty? markers) #f]
+      [(string-contains? line (car markers)) #t]
+      [else (loop (cdr markers))])))
+
+;;@doc
+;; The last line of CLI output that explains why something failed, or #false.
+(define (diagnostic-line text)
+  (let loop ([lines (reverse (split-many text "\n"))])
+    (cond
+      [(empty? lines) #f]
+      [(and (not (blank? (car lines))) (diagnostic? (car lines))) (strip-log-prefix (car lines))]
+      [else (loop (cdr lines))])))
 
 ;;;; ---------------------------------------------------------------------------
 ;;;; Commands
