@@ -39,4 +39,6 @@
                                              (if (equal? (car outcome) 'ok)
                                                  (finish (cdr outcome))
                                                  (fail (string-append "Dev container operation failed: "
-                                                                      (to-string (cdr outcome))))))))))
+                                                                      (to-string (cdr outcome)))))))))
+  ;; Helix echoes a command's return value, so the thread handle must not escape.
+  void)

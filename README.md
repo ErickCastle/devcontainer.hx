@@ -162,8 +162,8 @@ Not supported, and why:
   reads posting to the statusline.
 - **Container state and stop require `docker`.** The CLI has no
   inspect-without-starting command, and its `stop`/`down` subcommands are absent
-  from released versions despite being documented, so both go through
-  `docker` and the `devcontainer.local_folder` label the CLI sets.
+  from released versions despite being documented (confirmed against 0.88.0), so
+  both go through `docker` and the `devcontainer.local_folder` label the CLI sets.
 - **One workspace per Helix instance.** The workspace is Helix's working
   directory.
 
@@ -182,11 +182,14 @@ needed. Two things would have to change upstream for closer parity:
 
 ```sh
 ./scripts/setup-dev.sh   # builds the Steel toolchain and the Helix fork into .build/
-./tests/run.sh           # runs the test suite
+./tests/run.sh           # unit tests - needs only `steel`
+./tests/e2e.sh           # end-to-end tests - needs `devcontainer` and a container runtime
 ```
 
-The suite needs only `steel`; it uses a fake CLI in `tests/fake-bin/` and needs
-neither Docker nor the real Dev Container CLI.
+`run.sh` uses a fake CLI in `tests/fake-bin/` and needs neither Docker nor the
+real Dev Container CLI. `e2e.sh` drives the real CLI against small Alpine-based
+fixtures, exercises the full lifecycle, and removes the containers it creates; it
+skips itself if the prerequisites are missing.
 
 ```
 devcontainer.scm       public commands, the only module a user requires
