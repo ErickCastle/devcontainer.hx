@@ -14,9 +14,9 @@
 (provide cli-name
          cli-available?
          cli-install-hint
-         devcontainer-read-configuration
-         devcontainer-up
-         devcontainer-exec
+         read-configuration
+         up
+         exec
          outcome-ok?
          outcome-data
          outcome-message
@@ -157,7 +157,7 @@
 ;;
 ;; The result carries `configuration` and `workspace` (whose `workspaceFolder` is
 ;; the path the project is mounted at *inside* the container).
-(define (devcontainer-read-configuration workspace config)
+(define (read-configuration workspace config)
   (interpret-json-result (run-cli (append (list "read-configuration")
                                           (workspace-args workspace config)
                                           (list "--include-merged-configuration"))
@@ -172,7 +172,7 @@
 ;;
 ;; On success the result carries `containerId`, `remoteUser` and
 ;; `remoteWorkspaceFolder`.
-(define (devcontainer-up workspace config remove-existing? no-cache?)
+(define (up workspace config remove-existing? no-cache?)
   (interpret-json-result (run-cli (append (list "up")
                                           (workspace-args workspace config)
                                           (if remove-existing? (list "--remove-existing-container") '())
@@ -187,7 +187,7 @@
 ;;
 ;; Unlike the other commands this forwards the child's own stdout rather than a
 ;; JSON envelope, so the raw output and exit code are returned instead.
-(define (devcontainer-exec workspace config argv)
+(define (exec workspace config argv)
   (let ([result (run-cli (append (list "exec") (workspace-args workspace config) argv) workspace)])
     (if (hash-contains? result 'ok?)
         result

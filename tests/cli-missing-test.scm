@@ -4,7 +4,7 @@
 
 (check-equal? "a missing CLI is detected" (cli-available?) #f)
 
-(define result (devcontainer-up "tests/fixtures/dot-devcontainer-dir" #f #f #f))
+(define result (up "tests/fixtures/dot-devcontainer-dir" #f #f #f))
 
 (check-equal? "operations fail cleanly when the CLI is missing" (outcome-ok? result) #f)
 
@@ -17,9 +17,9 @@
               #t)
 
 (check-equal? "reading configuration also fails cleanly"
-              (outcome-ok? (devcontainer-read-configuration "tests/fixtures/dot-devcontainer-dir" #f))
+              (outcome-ok? (read-configuration "tests/fixtures/dot-devcontainer-dir" #f))
               #f)
 
 (check-equal? "exec also fails cleanly"
-              (outcome-ok? (devcontainer-exec "tests/fixtures/dot-devcontainer-dir" #f (list "uname")))
+              (outcome-ok? (exec "tests/fixtures/dot-devcontainer-dir" #f (list "uname")))
               #f)

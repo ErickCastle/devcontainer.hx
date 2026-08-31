@@ -23,7 +23,7 @@
 
 (set-mode! "success")
 
-(define up-ok (devcontainer-up workspace #f #f #f))
+(define up-ok (up workspace #f #f #f))
 
 (check-equal? "up succeeds" (outcome-ok? up-ok) #t)
 
@@ -37,7 +37,7 @@
               (json-ref (outcome-data up-ok) 'remoteWorkspaceFolder #f)
               "/workspaces/fixture")
 
-(define config-ok (devcontainer-read-configuration workspace #f))
+(define config-ok (read-configuration workspace #f))
 
 (check-equal? "read-configuration succeeds" (outcome-ok? config-ok) #t)
 
@@ -51,7 +51,7 @@
 ;;;; Arguments are passed as argv, never through a shell
 ;;;; ---------------------------------------------------------------------------
 
-(define exec-ok (devcontainer-exec workspace #f (list "echo" "hello world")))
+(define exec-ok (exec workspace #f (list "echo" "hello world")))
 
 (check-equal? "exec succeeds" (outcome-ok? exec-ok) #t)
 
@@ -63,7 +63,7 @@
 ;; concatenated into a shell command. It must survive as a single opaque argument.
 (define hostile-workspace "tests/fixtures/my project; touch pwned #")
 
-(define hostile (devcontainer-up hostile-workspace #f #f #f))
+(define hostile (up hostile-workspace #f #f #f))
 
 (check-equal? "a shell-hostile workspace path still runs" (outcome-ok? hostile) #t)
 
@@ -72,7 +72,7 @@
               #f)
 
 (check-equal? "a shell-hostile workspace path is passed through as one argument"
-              (trim (hash-ref (outcome-data (devcontainer-exec hostile-workspace #f (list "pwd")))
+              (trim (hash-ref (outcome-data (exec hostile-workspace #f (list "pwd")))
                              'stdout))
               "ran: pwd")
 
@@ -82,7 +82,7 @@
 
 (set-mode! "error-outcome")
 
-(define up-err (devcontainer-up workspace #f #f #f))
+(define up-err (up workspace #f #f #f))
 
 (check-equal? "a structured error is a failure" (outcome-ok? up-err) #f)
 
@@ -100,7 +100,7 @@
 
 (set-mode! "crash")
 
-(define crashed (devcontainer-up workspace #f #f #f))
+(define crashed (up workspace #f #f #f))
 
 (check-equal? "a non-zero exit without JSON is a failure" (outcome-ok? crashed) #f)
 
@@ -110,7 +110,7 @@
 
 (set-mode! "garbage")
 
-(define garbled (devcontainer-up workspace #f #f #f))
+(define garbled (up workspace #f #f #f))
 
 (check-equal? "unparseable output is a failure" (outcome-ok? garbled) #f)
 
@@ -120,7 +120,7 @@
 
 (set-mode! "nonzero-exec")
 
-(define exec-failed (devcontainer-exec workspace #f (list "false")))
+(define exec-failed (exec workspace #f (list "false")))
 
 (check-equal? "a non-zero command is reported as a failure" (outcome-ok? exec-failed) #f)
 
@@ -134,7 +134,7 @@
 
 (set-mode! "noisy-success")
 
-(define noisy (devcontainer-up workspace #f #f #f))
+(define noisy (up workspace #f #f #f))
 
 (check-equal? "a build producing megabytes of logs still completes" (outcome-ok? noisy) #t)
 

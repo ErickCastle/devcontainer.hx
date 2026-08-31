@@ -22,6 +22,8 @@ mkdir -p "$EMPTY_DIR"
 
 run "config discovery" steel tests/config-test.scm
 run "process layer" steel tests/proc-test.scm
+run "session state" steel tests/state-test.scm
+run "lsp configuration" steel tests/lsp-test.scm
 run "cli adapter (fake CLI on PATH)" env PATH="$ROOT/tests/fake-bin:$PATH" steel tests/cli-test.scm
 run "cli adapter (CLI absent)" env PATH="$EMPTY_DIR" "$STEEL" tests/cli-missing-test.scm
 
