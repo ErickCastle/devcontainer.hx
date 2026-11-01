@@ -21,7 +21,7 @@
 ;;@doc
 ;; Point `name` at the container. Returns a (ok? . message) pair; on success the
 ;; message is a warning to show anyway, or "" if there is nothing to warn about.
-(define (enable-server! name workspace)
+(define (enable-server! name workspace #:remote-env [remote-env '()])
   (cond
     [(not (cli-available?)) (cons #f (string-append "Dev Container CLI not found. " cli-install-hint))]
     [(saved name) (cons #f (string-append name " is already routed through the dev container"))]
@@ -31,7 +31,7 @@
            (cons #f (string-append "No language server configuration found for " name))
            (begin
              (set-box! *saved* (hash-insert (unbox *saved*) name config))
-             (set-lsp-config! name (wrapped-config config workspace name))
+             (set-lsp-config! name (wrapped-config config workspace name #:remote-env remote-env))
              (cons #t (mismatch-warning workspace)))))]))
 
 (define (mismatch-warning workspace)

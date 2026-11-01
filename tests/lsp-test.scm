@@ -33,6 +33,16 @@
               (hash-ref (wrapped-config (hash) workspace "clangd") "args")
               (list "exec" "--workspace-folder" workspace "clangd"))
 
+(check-equal? "remote environment pairs are passed before the program"
+              (hash-ref (wrapped-config plain workspace "rust-analyzer" #:remote-env (list "SSH_AUTH_SOCK=/tmp/a b.sock"))
+                        "args")
+              (list "exec"
+                    "--workspace-folder"
+                    workspace
+                    "--remote-env"
+                    "SSH_AUTH_SOCK=/tmp/a b.sock"
+                    "rust-analyzer"))
+
 ;; get-lsp-config hands back symbol keys and values that set-lsp-config! cannot
 ;; convert, so only the keys being changed may be sent, as strings.
 (define realistic (hash 'command "rust-analyzer" 'timeout 20.0 'required-root-patterns void))

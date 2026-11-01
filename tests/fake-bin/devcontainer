@@ -10,15 +10,17 @@ MODE_FILE="$(dirname "$0")/../tmp/fake-mode"
 MODE="success"
 [ -f "$MODE_FILE" ] && MODE="$(cat "$MODE_FILE")"
 
+# Every invocation's arguments, one per line, so tests can check the flags.
+printf '%s\n' "$@" >"$(dirname "$0")/../tmp/fake-args"
+
 log() { echo "$1" >&2; }
 
-# Drop the leading subcommand and any --workspace-folder/--config pairs, leaving
-# the user's own command.
+# Drop the leading subcommand and any flags, leaving the user's own command.
 strip_flags() {
 	shift
 	while [ "$#" -gt 0 ]; do
 		case "$1" in
-		--workspace-folder | --config) shift 2 ;;
+		--workspace-folder | --config | --remote-env | --mount) shift 2 ;;
 		--*) shift ;;
 		*) break ;;
 		esac
@@ -35,7 +37,10 @@ success)
 		echo '{"configuration":{"name":"fake","image":"debian"},"workspace":{"workspaceFolder":"/workspaces/fixture"}}'
 		;;
 	exec)
-		echo "ran: $(strip_flags "$@")"
+		case "$(strip_flags "$@")" in
+		"read-stdin") echo "stdin: $(cat)" ;;
+		*) echo "ran: $(strip_flags "$@")" ;;
+		esac
 		;;
 	*)
 		echo '{"outcome":"success","containerId":"deadbeef1234","remoteUser":"vscode","remoteWorkspaceFolder":"/workspaces/fixture"}'

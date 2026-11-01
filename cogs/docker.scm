@@ -13,14 +13,22 @@
 (require-builtin steel/filesystem)
 
 (provide docker-available?
+         docker-path
          container-for-workspace
          container-state
+         compose-containers
+         container-has-mount?
          stop-container)
 
 (define docker-name "docker")
 
 (define (docker-available?)
   (binary-available? docker-name))
+
+;;@doc
+;; Absolute path to the Docker CLI, or #false.
+(define (docker-path)
+  (binary-path docker-name))
 
 (define (label-filter workspace)
   (string-append "label=devcontainer.local_folder=" workspace))
@@ -52,6 +60,38 @@
       #f
       (let ([result (run/capture docker-name (list "inspect" "--format" "{{.State.Status}}" id) #f)])
         (if (proc-success? result) (first-line (proc-stdout result)) #f))))
+
+(define (non-blank-lines text)
+  (map trim (filter (lambda (line) (not (equal? (trim line) ""))) (split-many text "\n"))))
+
+(define (inspect id template)
+  (let ([result (run/capture docker-name (list "inspect" "--format" template id) #f)])
+    (if (proc-success? result) (proc-stdout result) #f)))
+
+;;@doc
+;; Every container in the Docker Compose project that `id` belongs to, or just
+;; `(list id)` when it is not part of one. This is what `stopCompose` stops.
+(define (compose-containers id)
+  (let* ([project (if (docker-available?)
+                      (first-line (or (inspect id "{{index .Config.Labels \"com.docker.compose.project\"}}") ""))
+                      #f)])
+    (if (or (not project) (equal? project "<no value>"))
+        (list id)
+        (let ([result (run/capture docker-name
+                                   (list "ps" "--quiet" "--filter" (string-append "label=com.docker.compose.project=" project))
+                                   #f)])
+          (if (proc-success? result)
+              (let ([ids (non-blank-lines (proc-stdout result))]) (if (empty? ids) (list id) ids))
+              (list id))))))
+
+;;@doc
+;; Whether the container has `source` mounted at `target`. Mounts are fixed when a
+;; container is created, so this tells whether it needs recreating.
+(define (container-has-mount? id source target)
+  (let ([text (if (and id (docker-available?))
+                  (inspect id "{{range .Mounts}}{{println .Source .Destination}}{{end}}")
+                  #f)])
+    (if text (if (member (string-append source " " target) (non-blank-lines text)) #t #f) #f)))
 
 ;;@doc
 ;; Stop a running container. Returns a (ok? . message) pair.

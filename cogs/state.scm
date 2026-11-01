@@ -14,7 +14,19 @@
          current-operation
          busy?
          set-last-logs!
-         last-logs)
+         last-logs
+         cached-status
+         set-cached-status!
+         progress
+         set-progress!
+         last-failed?
+         set-last-failed!
+         helper
+         set-helper!
+         relay
+         set-relay!
+         relay-active?
+         set-relay-active!)
 
 (define *state* (box (hash)))
 
@@ -89,3 +101,51 @@
 
 (define (last-logs workspace)
   (field workspace 'logs ""))
+
+;;;; ---------------------------------------------------------------------------
+;;;; What the status indicator shows
+;;;; ---------------------------------------------------------------------------
+
+;;@doc
+;; The last known container status: 'no-config, 'none, 'running, 'stopped or
+;; 'unknown. Rendering happens on every redraw, so it reads this cache instead of
+;; asking Docker.
+(define (cached-status workspace)
+  (field workspace 'status 'unknown))
+(define (set-cached-status! workspace status)
+  (set-field! workspace 'status status))
+
+;;@doc
+;; The latest progress line from the running operation, or "".
+(define (progress workspace)
+  (field workspace 'progress ""))
+(define (set-progress! workspace text)
+  (set-field! workspace 'progress text))
+
+;;@doc
+;; Whether the last operation failed.
+(define (last-failed? workspace)
+  (field workspace 'failed #f))
+(define (set-last-failed! workspace failed?)
+  (set-field! workspace 'failed failed?))
+
+;;;; ---------------------------------------------------------------------------
+;;;; The editor-lifetime helper and SSH relay (see session.scm)
+;;;; ---------------------------------------------------------------------------
+
+(define (helper workspace)
+  (field workspace 'helper #f))
+(define (set-helper! workspace child)
+  (set-field! workspace 'helper child))
+
+(define (relay workspace)
+  (field workspace 'relay #f))
+(define (set-relay! workspace plan)
+  (set-field! workspace 'relay plan))
+
+;;@doc
+;; Whether the container can reach the relay, i.e. was created with its mount.
+(define (relay-active? workspace)
+  (field workspace 'relay-active #f))
+(define (set-relay-active! workspace active?)
+  (set-field! workspace 'relay-active active?))

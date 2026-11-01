@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stand-in for the Docker CLI that records each invocation, one per line, in
+# tests/tmp/docker-calls. Used to observe what the exit helper would stop.
+echo "$*" >>"$(dirname "$0")/../tmp/docker-calls"

@@ -43,3 +43,26 @@
 (set-last-logs! a "build output")
 (check-equal? "logs are recorded" (last-logs a) "build output")
 (check-equal? "logs are per workspace" (last-logs b) "")
+
+(check-equal? "the status of an unseen workspace is unknown" (cached-status a) 'unknown)
+(set-cached-status! a 'running)
+(check-equal? "the status is cached" (cached-status a) 'running)
+(check-equal? "the status is per workspace" (cached-status b) 'unknown)
+
+(check-equal? "there is no progress at first" (progress a) "")
+(set-progress! a "Step 2/5")
+(check-equal? "progress is recorded" (progress a) "Step 2/5")
+
+(check-equal? "nothing has failed at first" (last-failed? a) #f)
+(set-last-failed! a #t)
+(check-equal? "a failure is recorded" (last-failed? a) #t)
+
+(check-equal? "there is no helper at first" (helper a) #f)
+(check-equal? "the relay is inactive at first" (relay-active? a) #f)
+(set-relay! a (hash 'socket "/s"))
+(set-relay-active! a #t)
+(check-equal? "the relay plan is recorded" (hash-ref (relay a) 'socket) "/s")
+(check-equal? "the relay can be marked active" (relay-active? a) #t)
+
+(forget! a)
+(check-equal? "forgetting the container keeps the relay, which outlives it" (relay-active? a) #t)

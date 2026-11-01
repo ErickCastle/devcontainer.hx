@@ -4,6 +4,9 @@
 (require "../cogs/cli.scm")
 (require "../cogs/config.scm")
 (require "../cogs/docker.scm")
+(require "../cogs/session.scm")
+(require-builtin steel/filesystem)
+(require-builtin steel/time)
 
 (define dir-fixture "tests/fixtures/e2e-dir")
 (define file-fixture "tests/fixtures/e2e-file")
@@ -39,11 +42,37 @@
 ;;;; Creating the container
 ;;;; ---------------------------------------------------------------------------
 
-(define started (up dir-fixture #f #f #f))
+(define relay-source (string-append (canonicalize-path "tests/tmp") "/e2e-relay"))
+(create-directory! relay-source)
+
+(define started
+  (up dir-fixture
+      #f
+      #f
+      #f
+      #:mounts (list (string-append "type=bind,source=" relay-source ",target=/tmp/devcontainer.hx-ssh"))
+      #:remote-env (list "HX_E2E=from-up")
+      #:on-progress (lambda (text) void)))
 
 (check-equal? "the container starts" (outcome-ok? started) #t)
 
 (define first-id (json-ref (outcome-data started) 'containerId #f))
+
+(check-equal? "the configuration is returned with the result"
+              (json-ref (json-ref (outcome-data started) 'configuration (hash)) 'name #f)
+              "hx-e2e-dir")
+
+(check-equal? "the relay directory is mounted into a new container"
+              (container-has-mount? first-id relay-source "/tmp/devcontainer.hx-ssh")
+              #t)
+
+(check-equal? "a different source is not mistaken for the relay mount"
+              (container-has-mount? first-id "/elsewhere" "/tmp/devcontainer.hx-ssh")
+              #f)
+
+(check-equal? "a container outside a compose project is stopped on its own"
+              (starts-with? first-id (car (compose-containers first-id)))
+              #t)
 
 (check-equal? "a container id is returned" (if (string? first-id) #t #f) #t)
 
@@ -82,6 +111,17 @@
               (outcome-ok? (exec dir-fixture #f (list "test" "-e" "/tmp/pwned")))
               #f)
 
+(check-equal? "remote environment reaches commands run in the container"
+              (stdout-of (exec dir-fixture #f (list "printenv" "HX_E2E") #:remote-env (list "HX_E2E=from-exec")))
+              "from-exec")
+
+(check-equal? "stdin can be fed from a host file"
+              (stdout-of (exec dir-fixture
+                               #f
+                               (list "sh" "-c" "cat > /tmp/fed && grep -c hx-e2e-dir /tmp/fed")
+                               #:stdin-file "tests/fixtures/e2e-dir/.devcontainer/devcontainer.json"))
+              "1")
+
 (define failed-command (exec dir-fixture #f (list "sh" "-c" "exit 42")))
 
 (check-equal? "a failing command is reported as a failure" (outcome-ok? failed-command) #f)
@@ -113,6 +153,32 @@
 (check-equal? "the restarted container is running"
               (container-state (container-for-workspace dir-fixture))
               "running")
+
+;;;; ---------------------------------------------------------------------------
+;;;; Stopping when the editor exits
+;;;; ---------------------------------------------------------------------------
+
+(define (eventually predicate tries)
+  (cond
+    [(predicate) #t]
+    [(= tries 0) #f]
+    [else
+     (time/sleep-ms 250)
+     (eventually predicate (- tries 1))]))
+
+(define exit-helper (start-helper (docker-path) (string-append (canonicalize-path "tests/tmp") "/e2e-locks") #f))
+
+(helper-arm! exit-helper (list first-id))
+
+(check-equal? "an armed helper leaves the container running while the editor runs"
+              (container-state (container-for-workspace dir-fixture))
+              "running")
+
+(helper-close! exit-helper)
+
+(check-equal? "the container is stopped once the editor exits"
+              (eventually (lambda () (not (equal? (container-state (container-for-workspace dir-fixture)) "running"))) 80)
+              #t)
 
 ;;;; ---------------------------------------------------------------------------
 ;;;; Rebuilding

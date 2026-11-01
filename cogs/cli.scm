@@ -19,6 +19,7 @@
          read-configuration
          up
          exec
+         progress-text
          outcome-ok?
          outcome-data
          outcome-message
@@ -100,12 +101,14 @@
   (string-append (proc-stderr result)
                  (if (equal? (proc-stdout result) "") "" (string-append "\n" (proc-stdout result)))))
 
-(define (run-cli args cwd)
+(define (run-cli args cwd #:on-line [on-line #f] #:stdin-file [stdin-file #f])
   (if (not (cli-available?))
       (err-outcome (string-append "Dev Container CLI (`" cli-name "`) not found on PATH")
                    cli-install-hint
                    "")
-      (let ([result (run/capture cli-name args cwd)])
+      (let ([result (if on-line
+                        (run/stream cli-name args cwd on-line)
+                        (run/capture cli-name args cwd #:stdin-file stdin-file))])
         (if (proc-spawn-failed? result)
             (err-outcome (string-append "Could not run `" cli-name "`")
                          (proc-stderr result)
@@ -218,28 +221,72 @@
 ;;
 ;; * remove-existing? : boolean? -- discard and recreate an existing container
 ;; * no-cache?        : boolean? -- rebuild the image ignoring the layer cache
+;; * #:mounts         : (listof string?) -- extra `--mount` specs, applied only
+;;                                          when a container is created
+;; * #:remote-env     : (listof string?) -- `NAME=value` pairs for lifecycle commands
+;; * #:on-progress    : (or (-> string? any?) #f) -- called with each progress line
 ;;
-;; On success the result carries `containerId`, `remoteUser` and
-;; `remoteWorkspaceFolder`.
-(define (up workspace config remove-existing? no-cache?)
+;; On success the result carries `containerId`, `remoteUser`,
+;; `remoteWorkspaceFolder` and the raw `configuration`.
+(define (up workspace
+            config
+            remove-existing?
+            no-cache?
+            #:mounts [mounts '()]
+            #:remote-env [remote-env '()]
+            #:on-progress [on-progress #f])
   (let ([root (absolute-path workspace)])
     (interpret-json-result (run-cli (append (list "up")
                                             (workspace-args root config)
+                                            (list "--include-configuration")
                                             (if remove-existing? (list "--remove-existing-container") '())
-                                            (if no-cache? (list "--build-no-cache") '()))
-                                    root)
+                                            (if no-cache? (list "--build-no-cache") '())
+                                            (repeat-flag "--mount" mounts)
+                                            (repeat-flag "--remote-env" remote-env))
+                                    root
+                                    #:on-line
+                                    (if on-progress
+                                        (lambda (line)
+                                          (let ([text (progress-text line)])
+                                            (when text
+                                              (on-progress text))))
+                                        #f))
                            "Starting dev container")))
+
+(define (repeat-flag flag values)
+  (if (empty? values) '() (append (list flag (car values)) (repeat-flag flag (cdr values)))))
+
+(define progress-max-length 100)
+
+;;@doc
+;; The text of a CLI log line worth showing as progress, or #false for blank
+;; lines. The timestamp prefix is removed and long lines are shortened.
+(define (progress-text line)
+  (let* ([trimmed (trim line)]
+         [text (if (starts-with? trimmed "[")
+                   (let ([parts (split-once trimmed "]")]) (if (list? parts) (trim (list-ref parts 1)) trimmed))
+                   trimmed)])
+    (cond
+      [(equal? text "") #f]
+      [(> (string-length text) progress-max-length)
+       (string-append (substring text 0 (- progress-max-length 1)) "…")]
+      [else text])))
 
 ;;@doc
 ;; Run a command inside the running dev container.
 ;;
-;; * argv : (listof string?) -- program and arguments, passed through as argv
+;; * argv        : (listof string?) -- program and arguments, passed through as argv
+;; * #:remote-env : (listof string?) -- extra `NAME=value` environment pairs
+;; * #:stdin-file : (or string? #f)  -- host file to feed to the command's stdin
 ;;
 ;; Unlike the other commands this forwards the child's own stdout rather than a
 ;; JSON envelope, so the raw output and exit code are returned instead.
-(define (exec workspace config argv)
+(define (exec workspace config argv #:remote-env [remote-env '()] #:stdin-file [stdin-file #f])
   (let* ([root (absolute-path workspace)]
-         [result (run-cli (append (list "exec") (workspace-args root config) argv) root)])
+         [result (run-cli (append (list "exec") (workspace-args root config) (repeat-flag "--remote-env" remote-env) argv)
+                          root
+                          #:stdin-file
+                          stdin-file)])
     (if (hash-contains? result 'ok?)
         result
         (if (proc-success? result)

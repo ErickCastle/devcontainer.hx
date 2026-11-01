@@ -174,3 +174,91 @@
               "noisy999")
 
 (set-mode! "success")
+
+;;;; ---------------------------------------------------------------------------
+;;;; Progress while starting
+;;;; ---------------------------------------------------------------------------
+
+(define (recorded-args)
+  (let* ([port (open-input-file "tests/tmp/fake-args")] [text (read-port-to-string port)])
+    (close-input-port port)
+    (filter (lambda (line) (not (equal? line ""))) (split-many text "\n"))))
+
+(define (value-after args flag)
+  (cond
+    [(or (empty? args) (empty? (cdr args))) #f]
+    [(equal? (car args) flag) (cadr args)]
+    [else (value-after (cdr args) flag)]))
+
+(define progress-lines (box '()))
+
+(define streamed-up
+  (up workspace #f #f #f #:on-progress (lambda (text) (set-box! progress-lines (cons text (unbox progress-lines))))))
+
+(check-equal? "a streamed up still succeeds" (outcome-ok? streamed-up) #t)
+
+(check-equal? "progress is reported line by line, without timestamps"
+              (reverse (unbox progress-lines))
+              (list "dev-containers-cli 0.80.0." "Start: Run: docker start"))
+
+(check-equal? "the streamed transcript is retained"
+              (string-contains? (outcome-logs streamed-up) "Start: Run: docker start")
+              #t)
+
+(set-mode! "noisy-success")
+
+(define noisy-count (box 0))
+
+(define noisy-streamed (up workspace #f #f #f #:on-progress (lambda (text) (set-box! noisy-count (+ 1 (unbox noisy-count))))))
+
+(check-equal? "a noisy streamed build still completes" (json-ref (outcome-data noisy-streamed) 'containerId #f) "noisy999")
+(check-equal? "every progress line is delivered" (unbox noisy-count) 20000)
+
+(set-mode! "image-missing")
+
+(check-equal? "a streamed failure still explains itself"
+              (outcome-message (up workspace #f #f #f #:on-progress (lambda (text) void)))
+              "Error response from daemon: No such image: example.com/nope:1-alpine")
+
+(set-mode! "success")
+
+(check-equal? "blank log lines are not progress" (progress-text "[2026-08-30T13:43:20.038Z] ") #f)
+(check-equal? "timestamps are stripped" (progress-text "[12 ms] Start: Run: docker build") "Start: Run: docker build")
+(check-equal? "long lines are shortened" (string-length (progress-text (make-string 300 #\x))) 100)
+
+;;;; ---------------------------------------------------------------------------
+;;;; Flags for the SSH relay
+;;;; ---------------------------------------------------------------------------
+
+(up workspace #f #f #f #:mounts (list "type=bind,source=/a b,target=/c") #:remote-env (list "SSH_AUTH_SOCK=/c/s.sock"))
+
+(check-equal? "the configuration is requested, for shutdownAction"
+              (if (member "--include-configuration" (recorded-args)) #t #f)
+              #t)
+
+(check-equal? "mounts are passed as single arguments"
+              (value-after (recorded-args) "--mount")
+              "type=bind,source=/a b,target=/c")
+
+(check-equal? "remote environment is passed to up"
+              (value-after (recorded-args) "--remote-env")
+              "SSH_AUTH_SOCK=/c/s.sock")
+
+(check-equal? "remote environment is passed to exec, before the command"
+              (trim (hash-ref (outcome-data (exec workspace #f (list "env") #:remote-env (list "A=1"))) 'stdout))
+              "ran: env")
+
+(check-equal? "exec received the pair"
+              (value-after (recorded-args) "--remote-env")
+              "A=1")
+
+(check-equal? "a file is fed to exec's stdin"
+              (trim (hash-ref (outcome-data (exec workspace
+                                                  #f
+                                                  (list "read-stdin")
+                                                  #:stdin-file "tests/fixtures/e2e-dir/.devcontainer/devcontainer.json"))
+                              'stdout))
+              (string-append "stdin: " (trim (let* ([port (open-input-file "tests/fixtures/e2e-dir/.devcontainer/devcontainer.json")]
+                                                    [text (read-port-to-string port)])
+                                               (close-input-port port)
+                                               text))))
